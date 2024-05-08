@@ -36,7 +36,6 @@ total_images_to_render = len(points) * len(sample_count) * \
                        len(heights) * len(camera_euler_rotations_x) * len(camera_euler_rotations_z)
 
 
-
 if __name__ == "__main__":
     args = parse_arguments()
 
@@ -66,7 +65,7 @@ if __name__ == "__main__":
 
     for samples in sample_count:
         bpy.context.scene.cycles.samples = samples
-        folder_path = args.output_folder + '/pix_' + str(samples)
+        folder_path = args.output_folder + '/samples_' + str(samples)
         
         for x, y in points:
             camera.location[0] = x
