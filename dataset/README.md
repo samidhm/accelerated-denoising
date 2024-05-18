@@ -6,6 +6,8 @@ for various camera positions and angles. Specifically, the script loads the `Bis
 Refer to the script for the exact configurations and other specifications. 
 The generated images are stored in the provided output folder and grouped by the number of samples per pixel.
 
+The data has been generated and can be found [here](https://drive.google.com/file/d/13zf6nw3t_bk1mYhGTgfbS2rGK1Y2Et8f/view?usp=sharing).
+
 ## Usage
 ```
 Blender -b -P render.py -- [-h] [-f FBX_SCENE_PATH] [-o OUTPUT_FOLDER] [-s START] [-e END] [-g]
