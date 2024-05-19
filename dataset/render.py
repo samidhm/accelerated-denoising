@@ -92,8 +92,6 @@ def activate_compositing(path: str):
 
 
 def deactivate_compositing():
-    bpy.context.scene.node_tree.nodes.clear()
-
     bpy.context.scene.use_nodes = False
     bpy.context.scene.view_layers["ViewLayer"].use_pass_z = False
     bpy.context.scene.view_layers["ViewLayer"].use_pass_combined = False
@@ -142,12 +140,12 @@ if __name__ == "__main__":
     pi_by_180 = (3.14159 / 180)
 
     # Handpicked (x, y) coordinates which are good camera positions for the Bistro exterior scene
-    points = [(23, 60), (20, 50), (13, 40), (7, 30), (-2, 20), (-10, 10), (-12, 4), (-12, -2), (-10, -6), (-5, -10)]
-    points += [(-5, -10), (-5, -10), (5, -14), (9, -16), (13, -18), (35, -26), (40, -28), (45, -30), (50, -32), (53, -33)]
-    points += [(56, -34), (60, -36), (60, -36), (70, -25), (77, -25), (85, -30), (85, -35), (84, -42), (80, -52), (76, -57)]
-    points += [(70, -59), (65, -55), (60, -50), (-25, 13), (-35, 23), (-39, 30), (-31, 37)]
+    points = [(20, 65), (23, 60), (20, 50), (13, 40), (7, 30), (-2, 20), (-10, 10), (-12, 4), (-12, -2), (-10, -6), (-5, -10)]
+    points += [(5, -14), (9, -16), (13, -18), (35, -26), (40, -28), (45, -30), (50, -32), (53, -33), (56, -34), (60, -36)]
+    points += [(70, -25), (77, -25), (85, -30), (85, -35), (84, -42), (80, -52), (76, -57), (70, -59), (65, -55), (60, -50)]
+    points += [(-25, 13), (-35, 23), (-39, 30), (-31, 37)]
 
-    sample_count = [1]
+    sample_count = [1, 512]
     heights = [i for i in range(2, 17)]
     camera_euler_rotations_x =  [60, 90, 120]
     camera_euler_rotations_z =  [i for i in range(0, 360, 45)]
