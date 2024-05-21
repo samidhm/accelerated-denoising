@@ -1,0 +1,7 @@
+data/*txt
+data/raw_data
+.DS_Store
+*/*png
+*/*npy
+__pycache__
+.mypy*
