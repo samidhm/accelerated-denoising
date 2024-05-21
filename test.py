@@ -7,20 +7,12 @@ from PIL import Image
 from unet import UNet
 from dataset import CustomImageDataset
 
-def create_datasets(train_txt, val_txt, test_txt, data_path, batch_size=32):
+def create_dataset(test_txt, data_path, batch_size=32):
     test_dataset = CustomImageDataset(test_txt, data_path)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-    return train_loader, val_loader, test_loader
+    return test_loader
 
-# Paths to the text files
-split_file_folder = "data"
-train_txt = f"{split_file_folder}/train.txt"
-val_txt = f"{split_file_folder}/val.txt"
-test_txt = f"{split_file_folder}/test.txt"
-
-# Paths to the image folders
-data_path = "data/raw_data"
-train_loader, val_loader, test_loader = create_datasets(train_txt, val_txt, test_txt, data_path)
+test_loader = create_dataset("data/test.txt", "data/raw_data")
 
 device = torch.device("cuda")
 model = UNet(13, 3).to(device)
