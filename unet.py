@@ -71,8 +71,3 @@ class UNet(nn.Module):
         # Final output layer
         out = self.final(dec1)
         return out
-
-model = UNet(8, 3)
-input_tensor = torch.randn(1, 8, 64, 64)  # Batch size of 1, 8 channels, 64x64 image
-output = model(input_tensor)
-print(output)  # Should be torch.Size([1, 3, 64, 64])
