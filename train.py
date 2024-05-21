@@ -1,10 +1,9 @@
+from time import time
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
-from torchvision import transforms
 import numpy as np
-import matplotlib.pyplot as plt
 import copy
 
 from unet import UNet
@@ -25,7 +24,7 @@ def LoG(img):
 	weight_np = np.repeat(weight_np, img.shape[1], axis=1)
 	weight_np = np.repeat(weight_np, img.shape[0], axis=0)
 
-	weight = torch.from_numpy(weight_np).type(torch.FloatTensor).to('cuda:0')
+	weight = torch.from_numpy(weight_np).type(torch.FloatTensor).to('cuda')
 
 	return torch.nn.functional.conv2d(img, weight, padding=1)
 
@@ -36,6 +35,16 @@ def HFEN(output, target):
 def l1_norm(output, target):
 	return torch.sum(torch.abs(output - target)) / torch.numel(output)
 
+def adjust_learning_rate(optimizer, epoch):
+    initial_lr = 0.001
+    if epoch < 10:
+        lr = initial_lr * (10 ** (epoch / 9))  # Geometric progression
+    else:
+        lr = initial_lr / np.sqrt(epoch + 1 - 9)  # 1/√t schedule
+    
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
+    print(f"Epoch {epoch+1}, Learning rate: {lr}")
 
 def create_datasets(train_txt, val_txt, test_txt, data_path, batch_size=32):
     train_dataset = CustomImageDataset(train_txt, data_path)
@@ -58,10 +67,9 @@ test_txt = f"{split_file_folder}/test.txt"
 data_path = "data/raw_data"
 train_loader, val_loader, test_loader = create_datasets(train_txt, val_txt, test_txt, data_path)
 
-device = torch.device("cpu")
+device = torch.device("cuda")
 # Define the model, loss function, and optimizer
 model = UNet(13, 3).to(device)
-criterion = nn.MSELoss()  # Mean Squared Error loss for denoising
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training parameters
@@ -73,11 +81,13 @@ patience_counter = 0
 # For saving the best model
 best_model_wts = copy.deepcopy(model.state_dict())
 
+model.train()
+
 # Training loop
 for epoch in range(num_epochs):
-    model.train()
+    adjust_learning_rate(optimizer, epoch)
     running_loss = 0.0
-    
+    t = time()
     for noisy_image, clean_image in train_loader:
         # Move tensors to the appropriate device
         noisy_image, clean_image = noisy_image.to(device), clean_image.to(device)
@@ -87,7 +97,7 @@ for epoch in range(num_epochs):
         
         # Forward pass
         outputs = model(noisy_image)
-        loss = 0.8 * l1_norm(outputs, clean_image) + 0.2 * HFEN(outputs, clean_image)
+        loss = 0.8 * l1_norm(outputs, clean_image) + 0.1 * HFEN(outputs, clean_image)
         
         # Backward pass and optimization
         loss.backward()
@@ -98,7 +108,7 @@ for epoch in range(num_epochs):
     
     # Calculate training loss
     epoch_loss = running_loss / len(train_loader.dataset)
-    print(f'Epoch [{epoch+1}/{num_epochs}], Training Loss: {epoch_loss:.4f}')
+    print(f'Epoch [{epoch+1}/{num_epochs}], Training Loss: {epoch_loss:.4f}, Time: {time()-t}s')
 
     # Validation phase
     model.eval()
@@ -107,7 +117,7 @@ for epoch in range(num_epochs):
         for noisy_image, clean_image in val_loader:
             noisy_image, clean_image = noisy_image.to(device), clean_image.to(device)
             outputs = model(noisy_image)
-            loss = criterion(outputs, clean_image)
+            loss = 0.8 * l1_norm(outputs, clean_image) + 0.1 * HFEN(outputs, clean_image)
             val_loss += loss.item() * noisy_image.size(0)
     
     # Calculate validation loss
