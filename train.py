@@ -24,7 +24,8 @@ def LoG(img):
 	weight_np = np.repeat(weight_np, img.shape[1], axis=1)
 	weight_np = np.repeat(weight_np, img.shape[0], axis=0)
 
-	weight = torch.from_numpy(weight_np).type(torch.FloatTensor).to('cuda')
+	#weight = torch.from_numpy(weight_np).type(torch.FloatTensor).to('cuda')
+	weight = torch.from_numpy(weight_np).type(torch.FloatTensor).to('cpu')
 
 	return torch.nn.functional.conv2d(img, weight, padding=1)
 
@@ -67,7 +68,8 @@ test_txt = f"{split_file_folder}/test.txt"
 data_path = "data/raw_data"
 train_loader, val_loader, test_loader = create_datasets(train_txt, val_txt, test_txt, data_path)
 
-device = torch.device("cuda")
+device = torch.device("cpu")
+#device = torch.device("cuda")
 # Define the model, loss function, and optimizer
 model = UNet(13, 3).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
