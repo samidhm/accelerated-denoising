@@ -26,9 +26,12 @@ os.makedirs(output_dir, exist_ok=True)
 test_files = open("data/test.txt", "r").read().strip().split("\n")
 
 with torch.no_grad():
-    for idx, (noisy_image, _) in enumerate(test_loader):
+    for idx, (noisy_image, clean_image, albedo_image_test), in enumerate(test_loader):
         noisy_image = noisy_image.to('cuda')
-        outputs = model(noisy_image)
+        albedo_image_test = albedo_image_test.to('cuda')
+        outputs_temp = model(noisy_image)
+        outputs = torch.mul(outputs_temp,albedo_image_test)
+        #outputs = torch.mul(outputs_temp,1)
         for i in range(outputs.size(0)):
             denoised_img = outputs[i].cpu().numpy().transpose(1, 2, 0)  # Convert to HWC format
             denoised_img = (denoised_img * 255).astype(np.uint8)  # Convert to uint8

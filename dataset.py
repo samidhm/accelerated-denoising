@@ -31,9 +31,14 @@ class CustomImageDataset(Dataset):
     def __getitem__(self, idx):
         image_name = self.image_names[idx]
 
-        # Load input images
-        input_images = [self._load_image(f"{self.data_path}/samples_1", image_name)]
+        albedo = (self._load_image(f"{self.data_path}/diffuse_color", image_name) + self._load_image(f"{self.data_path}/glossy_color", image_name) + 0.0001)
         
+        # Load input images
+        #input_images = [self._load_image(f"{self.data_path}/samples_1", image_name)]
+        input_images_tensor = self._load_image(f"{self.data_path}/samples_1", image_name)
+        input_images_div = torch.div(input_images_tensor, albedo)
+        #input_images_div = torch.div(input_images_tensor, 1)
+        input_images = [input_images_div]
         input_images.append(self._load_image(f"{self.data_path}/depth", image_name, True))
         input_images.append(self._load_image(f"{self.data_path}/normal", image_name))
 
@@ -53,14 +58,13 @@ class CustomImageDataset(Dataset):
         
         input_images.append(self._load_image(f"{self.data_path}/diffuse_color", image_name) + \
                             self._load_image(f"{self.data_path}/glossy_color", image_name))
-        
-        
+       
         # Concatenate input images along the channel dimension
         input_tensor = torch.cat(input_images, dim=0)
 
         # Load output image
         output_image = self._load_image(f"{self.data_path}/samples_512", image_name)
 
-        return input_tensor, output_image
+        return input_tensor, output_image, albedo
 
 

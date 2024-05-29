@@ -73,7 +73,7 @@ model = UNet(13, 3).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training parameters
-num_epochs = 50
+num_epochs = 10
 patience = 5  # Early stopping patience
 best_loss = float('inf')
 patience_counter = 0
@@ -88,17 +88,21 @@ for epoch in range(num_epochs):
     adjust_learning_rate(optimizer, epoch)
     running_loss = 0.0
     t = time()
-    for noisy_image, clean_image in train_loader:
+    for noisy_image, clean_image, albedo_image in train_loader:
+        #print(noisy_image.size())
+        #print(clean_image.size())
         # Move tensors to the appropriate device
-        noisy_image, clean_image = noisy_image.to(device), clean_image.to(device)
+        noisy_image, clean_image, albedo_image = noisy_image.to(device), clean_image.to(device), albedo_image.to(device)
         
         # Zero the parameter gradients
         optimizer.zero_grad()
         
         # Forward pass
-        outputs = model(noisy_image)
-        loss = 0.8 * l1_norm(outputs, clean_image) + 0.1 * HFEN(outputs, clean_image)
-        
+        outputs_temp = model(noisy_image)
+        #print(outputs.size())
+        outputs = torch.mul(outputs_temp, albedo_image)
+        #outputs = torch.mul(outputs_temp, 1)
+        loss = 0.9 * l1_norm(outputs, clean_image) + 0.0 * HFEN(outputs, clean_image)
         # Backward pass and optimization
         loss.backward()
         optimizer.step()
@@ -114,10 +118,12 @@ for epoch in range(num_epochs):
     model.eval()
     val_loss = 0.0
     with torch.no_grad():
-        for noisy_image, clean_image in val_loader:
-            noisy_image, clean_image = noisy_image.to(device), clean_image.to(device)
-            outputs = model(noisy_image)
-            loss = 0.8 * l1_norm(outputs, clean_image) + 0.1 * HFEN(outputs, clean_image)
+        for noisy_image, clean_image, albedo_image in val_loader:
+            noisy_image, clean_image, albedo_image = noisy_image.to(device), clean_image.to(device), albedo_image.to(device)
+            outputs_temp = model(noisy_image)
+            outputs = torch.mul(outputs_temp, albedo_image)
+            #outputs = torch.mul(outputs_temp, 1)
+            loss = 0.9 * l1_norm(outputs, clean_image) + 0.0 * HFEN(outputs, clean_image)
             val_loss += loss.item() * noisy_image.size(0)
     
     # Calculate validation loss
