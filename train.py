@@ -69,7 +69,7 @@ train_loader, val_loader, test_loader = create_datasets(train_txt, val_txt, test
 
 device = torch.device("cuda")
 # Define the model, loss function, and optimizer
-model = UNet(13, 3).to(device)
+model = UNet(10, 3).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training parameters
@@ -100,8 +100,8 @@ for epoch in range(num_epochs):
         # Forward pass
         outputs_temp = model(noisy_image)
         #print(outputs.size())
-        outputs = torch.mul(outputs_temp, albedo_image)
-        #outputs = torch.mul(outputs_temp, 1)
+        albedo_image = torch.sub(albedo_image, 0.001)
+        outputs = torch.mul(outputs_temp, 1)
         loss = 0.9 * l1_norm(outputs, clean_image) + 0.0 * HFEN(outputs, clean_image)
         # Backward pass and optimization
         loss.backward()
@@ -121,7 +121,8 @@ for epoch in range(num_epochs):
         for noisy_image, clean_image, albedo_image in val_loader:
             noisy_image, clean_image, albedo_image = noisy_image.to(device), clean_image.to(device), albedo_image.to(device)
             outputs_temp = model(noisy_image)
-            outputs = torch.mul(outputs_temp, albedo_image)
+            albedo_image = torch.sub(albedo_image, 0.0001)
+            outputs = torch.mul(outputs_temp, 1)
             #outputs = torch.mul(outputs_temp, 1)
             loss = 0.9 * l1_norm(outputs, clean_image) + 0.0 * HFEN(outputs, clean_image)
             val_loss += loss.item() * noisy_image.size(0)

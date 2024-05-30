@@ -15,7 +15,7 @@ def create_dataset(test_txt, data_path, batch_size=32):
 test_loader = create_dataset("data/test.txt", "data/raw_data")
 
 device = torch.device("cuda")
-model = UNet(13, 3).to(device)
+model = UNet(10, 3).to(device)
 
 model.load_state_dict(torch.load('unet_denoising.pth'))
 model.eval()
@@ -30,8 +30,9 @@ with torch.no_grad():
         noisy_image = noisy_image.to('cuda')
         albedo_image_test = albedo_image_test.to('cuda')
         outputs_temp = model(noisy_image)
-        outputs = torch.mul(outputs_temp,albedo_image_test)
-        #outputs = torch.mul(outputs_temp,1)
+        albedo_image_test = torch.sub(albedo_image_test, 0.0001)
+        #outputs = torch.mul(outputs_temp,albedo_image_test)
+        outputs = torch.mul(outputs_temp,1)
         for i in range(outputs.size(0)):
             denoised_img = outputs[i].cpu().numpy().transpose(1, 2, 0)  # Convert to HWC format
             denoised_img = (denoised_img * 255).astype(np.uint8)  # Convert to uint8
