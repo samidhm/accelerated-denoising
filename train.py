@@ -5,9 +5,17 @@ import torch.optim as optim
 from torch.utils.data import DataLoader
 import numpy as np
 import copy
+import argparse
+from torchvision.models import vgg16
+import torchvision.transforms as transforms
 
 from unet import UNet
 from dataset import CustomImageDataset
+
+#Define pretrained model for perceptual loss
+vgg = vgg16(pretrained=True).features[:16].eval() 
+for param in vgg.parameters():
+    param.requires_grad = False
 
 def LoG(img):
 	weight = [
@@ -35,6 +43,20 @@ def HFEN(output, target):
 def l1_norm(output, target):
 	return torch.sum(torch.abs(output - target)) / torch.numel(output)
 
+def perceptual_loss(output, target):
+    # Define a transformation to resize the input tensor to 224x224
+    transform = transforms.Compose([
+        transforms.ToPILImage(),  # Convert tensor to PIL Image
+        transforms.Resize((224, 224)),  # Resize PIL Image to 224x224
+        transforms.ToTensor(),  # Convert PIL Image back to tensor
+    ])
+    # Apply the transformation to your input tensor
+    output_resized = torch.stack([transform(image) for image in output])  
+    target_resized = torch.stack([transform(image) for image in target]) 
+    pred_features = vgg(output_resized)
+    target_features = vgg(target_resized)
+    return l1_norm(pred_features, target_features)
+
 def adjust_learning_rate(optimizer, epoch):
     initial_lr = 0.001
     if epoch < 10:
@@ -57,6 +79,14 @@ def create_datasets(train_txt, val_txt, test_txt, data_path, batch_size=32):
 
     return train_loader, val_loader, test_loader
 
+
+#Get arguments for network configuration from command line
+parser = argparse.ArgumentParser(description="UNet model training loop")
+parser.add_argument("n", type=int, help="No of encoder and decoder layers in the UNet network")
+parser.add_argument("bottleneck", type=str, help="Choose architecture of bottleneck layer, conv")
+    
+args = parser.parse_args()
+
 # Paths to the text files
 split_file_folder = "data"
 train_txt = f"{split_file_folder}/train.txt"
@@ -69,7 +99,7 @@ train_loader, val_loader, test_loader = create_datasets(train_txt, val_txt, test
 
 device = torch.device("cuda")
 # Define the model, loss function, and optimizer
-model = UNet(13, 3).to(device)
+model = UNet(13, 3, args.n, args.bottleneck).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training parameters
@@ -117,7 +147,7 @@ for epoch in range(num_epochs):
         for noisy_image, clean_image in val_loader:
             noisy_image, clean_image = noisy_image.to(device), clean_image.to(device)
             outputs = model(noisy_image)
-            loss = 0.8 * l1_norm(outputs, clean_image) + 0.1 * HFEN(outputs, clean_image)
+            loss = 0.5 * l1_norm(outputs, clean_image) + 0.25 * HFEN(outputs, clean_image) + 0.25 * perceptual_loss(outputs, clean_image)
             val_loss += loss.item() * noisy_image.size(0)
     
     # Calculate validation loss
