@@ -56,6 +56,8 @@ def activate_compositing(path: str):
     bpy.context.scene.view_layers["ViewLayer"].use_pass_normal = True
     bpy.context.scene.view_layers["ViewLayer"].use_pass_diffuse_color = True
     bpy.context.scene.view_layers["ViewLayer"].use_pass_glossy_color = True
+    bpy.context.scene.view_layers["ViewLayer"].use_pass_glossy_direct = True
+    bpy.context.scene.view_layers["ViewLayer"].use_pass_glossy_indirect = True
 
     bpy.context.scene.node_tree.nodes.clear()
 
@@ -80,6 +82,14 @@ def activate_compositing(path: str):
     nodes["normal"].base_path = path + "/normal/"
     nodes["normal"].format.color_mode = "RGB"
 
+    nodes["glossy_direct"] = bpy.context.scene.node_tree.nodes.new('CompositorNodeOutputFile')
+    nodes["glossy_direct"].base_path = path + "/glossy_direct/"
+    nodes["glossy_direct"].format.color_mode = "RGB"
+
+    nodes["glossy_indirect"] = bpy.context.scene.node_tree.nodes.new('CompositorNodeOutputFile')
+    nodes["glossy_indirect"].base_path = path + "/glossy_indirect/"
+    nodes["glossy_indirect"].format.color_mode = "RGB"
+
     # Link Render Layers node to other nodes
     bpy.context.scene.node_tree.links.new(render_layers.outputs['Image'], composite.inputs['Image'])
     bpy.context.scene.node_tree.links.new(render_layers.outputs['Depth'], normalize.inputs['Value'])
@@ -87,6 +97,8 @@ def activate_compositing(path: str):
     bpy.context.scene.node_tree.links.new(render_layers.outputs['GlossCol'], nodes["glossy_color"].inputs['Image'])
     bpy.context.scene.node_tree.links.new(render_layers.outputs['DiffCol'], nodes["diffuse_color"].inputs['Image'])
     bpy.context.scene.node_tree.links.new(render_layers.outputs['Normal'], nodes["normal"].inputs['Image'])
+    bpy.context.scene.node_tree.links.new(render_layers.outputs['GlossDir'], nodes["glossy_direct"].inputs['Image'])
+    bpy.context.scene.node_tree.links.new(render_layers.outputs['GlossIndir'], nodes["glossy_indirect"].inputs['Image'])
 
     return nodes
 
