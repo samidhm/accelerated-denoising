@@ -127,7 +127,7 @@ for epoch in range(num_epochs):
         
         # Forward pass
         outputs = model(noisy_image)
-        loss = 0.8 * l1_norm(outputs, clean_image) + 0.1 * HFEN(outputs, clean_image)
+        loss = 0.5 * l1_norm(outputs, clean_image) + 0.5 * HFEN(outputs, clean_image)
         
         # Backward pass and optimization
         loss.backward()
@@ -147,7 +147,7 @@ for epoch in range(num_epochs):
         for noisy_image, clean_image in val_loader:
             noisy_image, clean_image = noisy_image.to(device), clean_image.to(device)
             outputs = model(noisy_image)
-            loss = 0.5 * l1_norm(outputs, clean_image) + 0.25 * HFEN(outputs, clean_image) + 0.25 * perceptual_loss(outputs, clean_image)
+            loss = 0.5 * l1_norm(outputs, clean_image) + 0.5 * HFEN(outputs, clean_image)
             val_loss += loss.item() * noisy_image.size(0)
     
     # Calculate validation loss
