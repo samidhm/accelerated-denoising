@@ -98,7 +98,7 @@ def activate_compositing(path: str):
     bpy.context.scene.node_tree.links.new(render_layers.outputs['DiffCol'], nodes["diffuse_color"].inputs['Image'])
     bpy.context.scene.node_tree.links.new(render_layers.outputs['Normal'], nodes["normal"].inputs['Image'])
     bpy.context.scene.node_tree.links.new(render_layers.outputs['GlossDir'], nodes["glossy_direct"].inputs['Image'])
-    bpy.context.scene.node_tree.links.new(render_layers.outputs['GlossIndir'], nodes["glossy_indirect"].inputs['Image'])
+    bpy.context.scene.node_tree.links.new(render_layers.outputs['GlossInd'], nodes["glossy_indirect"].inputs['Image'])
 
     return nodes
 
