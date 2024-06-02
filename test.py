@@ -15,7 +15,7 @@ def create_dataset(test_txt, data_path, batch_size=32):
 test_loader = create_dataset("data/test.txt", "data/raw_data")
 
 device = torch.device("cuda")
-model = UNet(13, 3).to(device)
+model = UNet(16, 3).to(device)
 
 model.load_state_dict(torch.load('unet_denoising.pth'))
 model.eval()
@@ -26,7 +26,8 @@ os.makedirs(output_dir, exist_ok=True)
 test_files = open("data/test.txt", "r").read().strip().split("\n")
 
 with torch.no_grad():
-    for idx, (noisy_image, _) in enumerate(test_loader):
+    #for idx, (noisy_image, _) in enumerate(test_loader):
+    for idx, (noisy_image, clean_image), in enumerate(test_loader):
         noisy_image = noisy_image.to('cuda')
         outputs = model(noisy_image)
         for i in range(outputs.size(0)):

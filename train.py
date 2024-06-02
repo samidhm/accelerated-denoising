@@ -99,11 +99,11 @@ train_loader, val_loader, test_loader = create_datasets(train_txt, val_txt, test
 
 device = torch.device("cuda")
 # Define the model, loss function, and optimizer
-model = UNet(13, 3, args.n, args.bottleneck).to(device)
+model = UNet(16, 3, args.n, args.bottleneck, "sigmoid").to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training parameters
-num_epochs = 50
+num_epochs = 10
 patience = 5  # Early stopping patience
 best_loss = float('inf')
 patience_counter = 0
@@ -127,7 +127,8 @@ for epoch in range(num_epochs):
         
         # Forward pass
         outputs = model(noisy_image)
-        loss = 0.5 * l1_norm(outputs, clean_image) + 0.5 * HFEN(outputs, clean_image)
+
+        loss = 0.5 * l1_norm(outputs, clean_image) + 0.5 * HFEN(outputs, clean_image) 
         
         # Backward pass and optimization
         loss.backward()

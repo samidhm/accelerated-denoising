@@ -31,8 +31,10 @@ class CustomImageDataset(Dataset):
     def __getitem__(self, idx):
         image_name = self.image_names[idx]
 
+
         # Load input images
-        input_images = [self._load_image(f"{self.data_path}/samples_1", image_name)]
+        input_images_tensor = self._load_image(f"{self.data_path}/samples_1", image_name)
+        input_images = [input_images_tensor]
         
         input_images.append(self._load_image(f"{self.data_path}/depth", image_name, True))
         input_images.append(self._load_image(f"{self.data_path}/normal", image_name))
@@ -50,10 +52,16 @@ class CustomImageDataset(Dataset):
         assert relative_normal.shape == input_images[-1].shape
 
         input_images.append(relative_normal)
-        
-        input_images.append(self._load_image(f"{self.data_path}/diffuse_color", image_name) + \
-                            self._load_image(f"{self.data_path}/glossy_color", image_name))
-        
+       
+
+        glossy_direct =  torch.mul(self._load_image(f"{self.data_path}/glossy_direct", image_name), 0.7)
+        glossy_indirect =  torch.mul(self._load_image(f"{self.data_path}/glossy_indirect", image_name), 0.3)
+        glossy_sum = torch.add(glossy_direct, glossy_indirect, alpha = 1)
+        glossy_inverse = torch.sub(1, glossy_sum)
+        input_images.append(glossy_inverse)
+
+        albedo = (self._load_image(f"{self.data_path}/diffuse_color", image_name) + self._load_image(f"{self.data_path}/glossy_color", image_name)) 
+        input_images.append(albedo)
         
         # Concatenate input images along the channel dimension
         input_tensor = torch.cat(input_images, dim=0)
@@ -62,5 +70,4 @@ class CustomImageDataset(Dataset):
         output_image = self._load_image(f"{self.data_path}/samples_512", image_name)
 
         return input_tensor, output_image
-
 
