@@ -1,7 +1,7 @@
 import os
 from PIL import Image
 import torch
-from torch.utils.data import Dataset, DataLoader
+from torch.utils.data import Dataset
 from torchvision import transforms
 import numpy as np
 
@@ -63,7 +63,6 @@ class CustomImageDataset(Dataset):
             input_images.append(relative_normal)
 
         if "roughness" in self.include: 
-
             glossy_direct =  torch.mul(self._load_image(f"{self.data_path}/glossy_direct", image_name), 0.7)
             glossy_indirect =  torch.mul(self._load_image(f"{self.data_path}/glossy_indirect", image_name), 0.3)
             glossy_sum = torch.add(glossy_direct, glossy_indirect, alpha = 1)

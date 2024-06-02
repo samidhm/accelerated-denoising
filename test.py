@@ -1,3 +1,4 @@
+import json
 import time
 import torch
 from torch.utils.data import DataLoader
@@ -7,43 +8,35 @@ from PIL import Image
 import argparse
 
 from unet import UNet
-from dataset import CustomImageDataset
 import argparse
 from tqdm import tqdm
 
+from utils import *
+
 from model_stats import SizeEstimator
-
-def create_dataset(test_txt, data_path, batch_size=32):
-    test_dataset = CustomImageDataset(test_txt, data_path)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-    return test_loader
-
-def create_datasets(train_txt, val_txt, test_txt, data_path, batch_size=32):
-    train_dataset = CustomImageDataset(train_txt, data_path)
-    val_dataset = CustomImageDataset(val_txt, data_path)
-    test_dataset = CustomImageDataset(test_txt, data_path)
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-    return train_loader, val_loader, test_loader
 
 
 #Get arguments for network configuration from command line
 parser = argparse.ArgumentParser(description="UNet model training loop")
-parser.add_argument("quantize", type=str, help="Choose quantization mode", default="none")
-    
+parser.add_argument("-q", "--quantize", type=str, help="Choose quantization mode", default="none", choices=["none", "ptdq", "ptsq"])
+parser.add_argument("-e", "--experiment", default="unet_denoising", type=str, help="Name of the experiment to evaluate")
+parser.add_argument("-b", "--batch_size", default=1260, type=int, help="Inference batch size")
+
 args = parser.parse_args()
 
-train_loader, val_loader, test_loader = create_datasets("data/train.txt", "data/val.txt","data/test.txt", "data/raw_data")
+folder = f"results/{args.experiment}"
+
+config = json.load(open(f"{folder}/config.json"))
+
+train_loader, val_loader, test_loader, num_features = \
+        create_datasets("data/train.txt", "data/val.txt","data/test.txt", "data/raw_data", config["features"], args.batch_size)
 
 
 device = torch.device("cuda")
 
 #Load model checkpoint
-model = UNet(16, 3).to(device)
-model.load_state_dict(torch.load('unet_denoising.pth'))
+model = UNet(num_features, 3, config["n"]).to(device)
+model.load_state_dict(torch.load(f"{folder}/checkpoint.pth"))
 model.eval()
 
 print('Weights before quantization')
@@ -64,22 +57,23 @@ elif args.quantize == "ptsq":
             model(noisy_image)
             break
     
-    torch.ao.quantization.convert(model, inplace= True)
+    torch.ao.quantization.convert(model, inplace=True)
     print('Weights after quantization')
     print(torch.int_repr(model.bottleneck.weight()))
 else:
     pass
 
-output_dir = 'denoised_test_images'
+output_dir = f"{folder}/eval_quant_{args.quantize}"
+images_dir = f"{output_dir}/images"
 os.makedirs(output_dir, exist_ok=True)
 os.makedirs(images_dir, exist_ok=True)
 
 test_files = open("data/test.txt", "r").read().strip().split("\n")
 latencies = []
+psnr_values = []
 
 with torch.no_grad():
-    #for idx, (noisy_image, _) in enumerate(test_loader):
-    for idx, (noisy_image, clean_image), in enumerate(test_loader):
+    for idx, (noisy_image, gold) in enumerate(test_loader):
         noisy_image = noisy_image.to('cuda')
         
         t = time.time()
@@ -90,6 +84,17 @@ with torch.no_grad():
             denoised_img = outputs[i].cpu().numpy().transpose(1, 2, 0)  # Convert to HWC format
             denoised_img = (denoised_img * 255).astype(np.uint8)  # Convert to uint8
             img = Image.fromarray(denoised_img)
+            psnr_values.append(psnr(denoised_img, gold))
             img.save(os.path.join(images_dir, f'{test_files[idx * test_loader.batch_size + i]}'))
-        
-print(f"Denoised test images saved to {output_dir}")
+
+out = {
+    "batch_size": args.batch_size,
+    "avg_batch_latency": np.mean(latencies),
+    "model_size": SizeEstimator(model).estimate_size()[1],
+    "avg_psnr": np.mean(psnr_values)
+}    
+
+with open(f"{output_dir}/stats.json", 'w') as fp:
+    json.dump(out, fp)
+
+print(f"Denoised test results saved to {output_dir}")

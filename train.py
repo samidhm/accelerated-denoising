@@ -6,85 +6,21 @@ from torch.utils.data import DataLoader
 import numpy as np
 import copy
 import argparse
-from torchvision.models import vgg16
-import torchvision.transforms as transforms
+from utils import *
+from tqdm import tqdm
+import os
+import json
 
 from unet import UNet
-from dataset import CustomImageDataset
-
-#Define pretrained model for perceptual loss
-vgg = vgg16(pretrained=True).features[:16].eval() 
-for param in vgg.parameters():
-    param.requires_grad = False
-
-def LoG(img):
-	weight = [
-		[0, 0, 1, 0, 0],
-		[0, 1, 2, 1, 0],
-		[1, 2, -16, 2, 1],
-		[0, 1, 2, 1, 0],
-		[0, 0, 1, 0, 0]
-	]
-	weight = np.array(weight)
-
-	weight_np = np.zeros((1, 1, 5, 5))
-	weight_np[0, 0, :, :] = weight
-	weight_np = np.repeat(weight_np, img.shape[1], axis=1)
-	weight_np = np.repeat(weight_np, img.shape[0], axis=0)
-
-	weight = torch.from_numpy(weight_np).type(torch.FloatTensor).to('cuda')
-
-	return torch.nn.functional.conv2d(img, weight, padding=1)
-
-def HFEN(output, target):
-	return torch.sum(torch.pow(LoG(output) - LoG(target), 2)) / torch.sum(torch.pow(LoG(target), 2))
-
-
-def l1_norm(output, target):
-	return torch.sum(torch.abs(output - target)) / torch.numel(output)
-
-def perceptual_loss(output, target):
-    # Define a transformation to resize the input tensor to 224x224
-    transform = transforms.Compose([
-        transforms.ToPILImage(),  # Convert tensor to PIL Image
-        transforms.Resize((224, 224)),  # Resize PIL Image to 224x224
-        transforms.ToTensor(),  # Convert PIL Image back to tensor
-    ])
-    # Apply the transformation to your input tensor
-    output_resized = torch.stack([transform(image) for image in output])  
-    target_resized = torch.stack([transform(image) for image in target]) 
-    pred_features = vgg(output_resized)
-    target_features = vgg(target_resized)
-    return l1_norm(pred_features, target_features)
-
-def adjust_learning_rate(optimizer, epoch):
-    initial_lr = 0.001
-    if epoch < 10:
-        lr = initial_lr * (10 ** (epoch / 9))  # Geometric progression
-    else:
-        lr = initial_lr / np.sqrt(epoch + 1 - 9)  # 1/√t schedule
-    
-    for param_group in optimizer.param_groups:
-        param_group['lr'] = lr
-    print(f"Epoch {epoch+1}, Learning rate: {lr}")
-
-def create_datasets(train_txt, val_txt, test_txt, data_path, batch_size=32):
-    train_dataset = CustomImageDataset(train_txt, data_path)
-    val_dataset = CustomImageDataset(val_txt, data_path)
-    test_dataset = CustomImageDataset(test_txt, data_path)
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
-    test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
-
-    return train_loader, val_loader, test_loader
-
 
 #Get arguments for network configuration from command line
 parser = argparse.ArgumentParser(description="UNet model training loop")
-parser.add_argument("n", type=int, help="No of encoder and decoder layers in the UNet network")
-parser.add_argument("bottleneck", type=str, help="Choose architecture of bottleneck layer, conv")
-    
+parser.add_argument("-n", "--num_layers", type=int, default=4, help="No of encoder and decoder layers in the UNet network")
+parser.add_argument("-b", "--bottleneck", type=str, default="conv", help="Choose architecture of bottleneck layer, conv")
+parser.add_argument("-f", "--features", nargs='+', default=["depth", "normal", "relative_normal", "albedo", "roughness"], help="Features to include")
+parser.add_argument("-t", "--tag", type=str, default="", help="Tag to be added for while saving files")
+parser.add_argument("-a", "--alpha", type=str, default=0.5, help="Coefficient for L1 loss")
+
 args = parser.parse_args()
 
 # Paths to the text files
@@ -95,11 +31,11 @@ test_txt = f"{split_file_folder}/test.txt"
 
 # Paths to the image folders
 data_path = "data/raw_data"
-train_loader, val_loader, test_loader = create_datasets(train_txt, val_txt, test_txt, data_path)
+train_loader, val_loader, test_loader, num_features = create_datasets(train_txt, val_txt, test_txt, data_path, args.features)
 
 device = torch.device("cuda")
 # Define the model, loss function, and optimizer
-model = UNet(16, 3, args.n, args.bottleneck, "sigmoid").to(device)
+model = UNet(num_features, 3, args.n, args.bottleneck).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training parameters
@@ -107,6 +43,10 @@ num_epochs = 10
 patience = 5  # Early stopping patience
 best_loss = float('inf')
 patience_counter = 0
+
+training_loss = []
+validation_loss = []
+validation_psnr = []
 
 # For saving the best model
 best_model_wts = copy.deepcopy(model.state_dict())
@@ -118,7 +58,7 @@ for epoch in range(num_epochs):
     adjust_learning_rate(optimizer, epoch)
     running_loss = 0.0
     t = time()
-    for noisy_image, clean_image in train_loader:
+    for noisy_image, clean_image in tqdm(train_loader):
         # Move tensors to the appropriate device
         noisy_image, clean_image = noisy_image.to(device), clean_image.to(device)
         
@@ -127,8 +67,7 @@ for epoch in range(num_epochs):
         
         # Forward pass
         outputs = model(noisy_image)
-
-        loss = 0.5 * l1_norm(outputs, clean_image) + 0.5 * HFEN(outputs, clean_image) 
+        loss = args.alpha * l1_norm(outputs, clean_image) + (1-args.alpha) * HFEN(outputs, clean_image)
         
         # Backward pass and optimization
         loss.backward()
@@ -139,21 +78,26 @@ for epoch in range(num_epochs):
     
     # Calculate training loss
     epoch_loss = running_loss / len(train_loader.dataset)
+    training_loss.append(epoch_loss)
     print(f'Epoch [{epoch+1}/{num_epochs}], Training Loss: {epoch_loss:.4f}, Time: {time()-t}s')
 
     # Validation phase
     model.eval()
     val_loss = 0.0
+    psnr_values = []
     with torch.no_grad():
-        for noisy_image, clean_image in val_loader:
+        for noisy_image, clean_image in tqdm(val_loader):
             noisy_image, clean_image = noisy_image.to(device), clean_image.to(device)
             outputs = model(noisy_image)
-            loss = 0.5 * l1_norm(outputs, clean_image) + 0.5 * HFEN(outputs, clean_image)
+            loss = args.alpha * l1_norm(outputs, clean_image) + (1-args.alpha) * HFEN(outputs, clean_image)
             val_loss += loss.item() * noisy_image.size(0)
+            psnr_values += [psnr(outputs[i], clean_image[i]) for i in range(outputs.size(0))]
     
     # Calculate validation loss
     val_loss /= len(val_loader.dataset)
-    print(f'Epoch [{epoch+1}/{num_epochs}], Validation Loss: {val_loss:.4f}')
+    validation_loss.append(val_loss)
+    validation_psnr.append(np.mean(psnr_values))
+    print(f'Epoch [{epoch+1}/{num_epochs}], Validation Loss: {val_loss:.4f}, Validation PSNR: {validation_loss[-1]}')
     
     # Check for early stopping
     if val_loss < best_loss:
@@ -169,5 +113,27 @@ for epoch in range(num_epochs):
 # Load the best model weights
 model.load_state_dict(best_model_wts)
 
+os.makedirs("results", exist_ok=True)
+feature_string = '\t'.join([x[:3] for x in args.features])
+experiment_name = f"{args.tag}_n_{args.n}_alpha_{args.alpha:.2f}_feat_{feature_string}"
+
+folder = f"results/{experiment_name}"
+os.makedirs(folder, exist_ok=True)
+
 # Save the model
-torch.save(model.state_dict(), 'unet_denoising.pth')
+torch.save(model.state_dict(), f"{folder}/checkpoint.pth")
+
+config = {
+    "n": args.num_layers,
+    "features": args.features,
+    "tag": args.tag,
+    "alpha": args.alpha
+}
+
+with open(f"{folder}/config.json", 'w') as fp:
+    json.dump(config, fp)
+
+open(f"{folder}/training_loss.txt", "w").write("\n".join([str(x) for x in training_loss]))
+open(f"{folder}/validation_loss.txt", "w").write("\n".join([str(x) for x in validation_loss]))
+open(f"{folder}/validation_psnr.txt", "w").write("\n".join([str(x) for x in validation_psnr]))
+
