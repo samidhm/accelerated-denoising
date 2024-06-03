@@ -75,9 +75,14 @@ class CustomImageDataset(Dataset):
         
         # Concatenate input images along the channel dimension
         input_tensor = torch.cat(input_images, dim=0)
+	
+        #print('SAMIDH :::', input_tensor.dtype)
+        input_tensor = input_tensor.to(torch.bfloat16)
+        #print('SAMIDH :::', input_tensor.dtype)
 
         # Load output image
         output_image = self._load_image(f"{self.data_path}/samples_512", image_name)
+        output_image = output_image.to(torch.bfloat16)
 
         return input_tensor, output_image
 

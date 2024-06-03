@@ -40,7 +40,7 @@ model.load_state_dict(torch.load(f"{folder}/checkpoint.pth"))
 model.eval()
 
 print('Weights before quantization')
-print(model.bottleneck.weight())
+print(model.bottleneck[0].weight)
 
 #Quantize model
 if args.quantize == "ptdq":
@@ -81,16 +81,18 @@ with torch.no_grad():
         latencies.append(time.time() - t)
 
         for i in range(outputs.size(0)):
-            denoised_img = outputs[i].cpu().numpy().transpose(1, 2, 0)  # Convert to HWC format
-            denoised_img = (denoised_img * 255).astype(np.uint8)  # Convert to uint8
+            psnr_values.append(psnr(outputs[i].cpu(), gold))
+            #denoised_img = outputs[i].cpu().numpy().transpose(1, 2, 0)  # Convert to HWC format
+            #denoised_img = (denoised_img * 255).astype(np.uint8)  # Convert to uint8
+            denoised_img = outputs[i].to(torch.float32).cpu().numpy().transpose(1, 2, 0)  # Convert to HWC format
+            denoised_img = (denoised_img * 255).astype(np.uint8)
             img = Image.fromarray(denoised_img)
-            psnr_values.append(psnr(denoised_img, gold))
             img.save(os.path.join(images_dir, f'{test_files[idx * test_loader.batch_size + i]}'))
 
 out = {
     "batch_size": args.batch_size,
     "avg_batch_latency": np.mean(latencies),
-    "model_size": SizeEstimator(model).estimate_size()[1],
+    "model_size": os.path.getsize(f"{folder}/checkpoint.pth") / 1e3,
     "avg_psnr": np.mean(psnr_values)
 }    
 
