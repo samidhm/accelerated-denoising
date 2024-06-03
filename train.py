@@ -43,6 +43,9 @@ num_epochs = 5
 patience = 5  # Early stopping patience
 best_loss = float('inf')
 patience_counter = 0
+l2_loss = 0
+l1_epochs = 0
+l2_epochs = 0
 
 training_loss = []
 validation_loss = []
@@ -67,9 +70,10 @@ for epoch in range(num_epochs):
         
         # Forward pass
         outputs = model(noisy_image)
-        #print('SAMIDH :::', outputs.dtype)
-        
-        loss = args.alpha * l1_norm(outputs, clean_image) + (1-args.alpha) * HFEN(outputs, clean_image)
+        if l2_loss == 0:
+            loss = args.alpha * l1_norm(outputs, clean_image) + (1-args.alpha) * HFEN(outputs, clean_image)
+        elif l2_loss == 1:
+            loss = args.alpha * l2_norm(outputs, clean_image) + (1-args.alpha) * HFEN(outputs, clean_image)
         
         # Backward pass and optimization
         loss.backward()
@@ -109,7 +113,14 @@ for epoch in range(num_epochs):
     else:
         patience_counter += 1
         if patience_counter >= patience:
-            print("Early stopping triggered")
+            if l2_loss == 0:
+                print("Early stopping triggered, switch to l2 loss for remaining epochs")
+                l2_loss = 1
+                patience_counter = 0
+                l1_epochs = epoch
+            elif l2_loss == 1:
+                print("Early stopping triggered, exiting")
+                l2_epochs = epoch
             break
 
 # Load the best model weights
@@ -135,7 +146,9 @@ config = {
     "n": args.num_layers,
     "features": args.features,
     "tag": args.tag,
-    "alpha": args.alpha
+    "alpha": args.alpha,
+    "l1_epochs": l1_epochs,
+    "l2_epochs": l2_epochs
 }
 
 with open(f"{folder}/config.json", 'w') as fp:
