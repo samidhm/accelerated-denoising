@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class UNet(nn.Module):
-    def __init__(self, in_channels, out_channels, no_layers = 4, bottleneck = "conv"):
+    def __init__(self, in_channels, out_channels, no_layers = 4, bottleneck = "conv", activation = ""):
         super(UNet, self).__init__()
 
         #Define the encoder layers
@@ -25,6 +25,8 @@ class UNet(nn.Module):
 
         # Define the final output layer
         self.final = nn.Conv2d(in_channels=64, out_channels=out_channels, kernel_size=1)
+
+        self.activation = activation
 
     def conv_block(self, in_channels, out_channels):
         return nn.Sequential(
@@ -58,4 +60,10 @@ class UNet(nn.Module):
                 ip = l(ip)
 
         out = self.final(ip)
+
+        #Apply final activation
+        if self.activation == "sigmoid":
+            out = F.sigmoid(out)
+        
+        
         return out

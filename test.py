@@ -40,7 +40,7 @@ model.load_state_dict(torch.load(f"{folder}/checkpoint.pth"))
 model.eval()
 
 print('Weights before quantization')
-print(model.bottleneck.weight())
+print(model.bottleneck[0].weight())
 
 #Quantize model
 if args.quantize == "ptdq":
