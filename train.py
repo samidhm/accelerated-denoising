@@ -35,11 +35,11 @@ train_loader, val_loader, test_loader, num_features = create_datasets(train_txt,
 
 device = torch.device("cuda")
 # Define the model, loss function, and optimizer
-model = UNet(num_features, 3, args.n, args.bottleneck).to(device)
+model = UNet(num_features, 3, args.num_layers, args.bottleneck).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training parameters
-num_epochs = 10
+num_epochs = 5
 patience = 5  # Early stopping patience
 best_loss = float('inf')
 patience_counter = 0
@@ -67,6 +67,8 @@ for epoch in range(num_epochs):
         
         # Forward pass
         outputs = model(noisy_image)
+        #print('SAMIDH :::', outputs.dtype)
+        
         loss = args.alpha * l1_norm(outputs, clean_image) + (1-args.alpha) * HFEN(outputs, clean_image)
         
         # Backward pass and optimization
@@ -97,7 +99,7 @@ for epoch in range(num_epochs):
     val_loss /= len(val_loader.dataset)
     validation_loss.append(val_loss)
     validation_psnr.append(np.mean(psnr_values))
-    print(f'Epoch [{epoch+1}/{num_epochs}], Validation Loss: {val_loss:.4f}, Validation PSNR: {validation_loss[-1]}')
+    print(f'Epoch [{epoch+1}/{num_epochs}], Validation Loss: {val_loss:.4f}, Validation PSNR: {validation_psnr[-1]}')
     
     # Check for early stopping
     if val_loss < best_loss:
@@ -114,8 +116,14 @@ for epoch in range(num_epochs):
 model.load_state_dict(best_model_wts)
 
 os.makedirs("results", exist_ok=True)
-feature_string = '\t'.join([x[:3] for x in args.features])
-experiment_name = f"{args.tag}_n_{args.n}_alpha_{args.alpha:.2f}_feat_{feature_string}"
+feature_string = '_'.join([x[:3] for x in args.features])
+
+if args.tag != "":
+    experiment_name = f"{args.tag}_"
+else:
+    experiment_name = ""
+
+experiment_name += f"n_{args.num_layers}_alpha_{args.alpha:.2f}_feat_{feature_string}"
 
 folder = f"results/{experiment_name}"
 os.makedirs(folder, exist_ok=True)

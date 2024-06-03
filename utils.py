@@ -11,7 +11,7 @@ def psnr(img1, img2):
         return float('inf')
     return 20 * math.log10(1.0 / math.sqrt(mse))
 
-def LoG(img):
+def LoG(img, use_bfloat16=True):
 	weight = [
 		[0, 0, 1, 0, 0],
 		[0, 1, 2, 1, 0],
@@ -28,10 +28,15 @@ def LoG(img):
 
 	weight = torch.from_numpy(weight_np).type(torch.FloatTensor).to('cuda')
 
+	if use_bfloat16:
+		weight = weight.to(torch.bfloat16)	
+	else:
+		weight = weight.to(torch.float32)
+        
 	return torch.nn.functional.conv2d(img, weight, padding=1)
 
-def HFEN(output, target):
-	return torch.sum(torch.pow(LoG(output) - LoG(target), 2)) / torch.sum(torch.pow(LoG(target), 2))
+def HFEN(output, target, use_bfloat16=True):
+	return torch.sum(torch.pow(LoG(output, use_bfloat16) - LoG(target, use_bfloat16), 2)) / torch.sum(torch.pow(LoG(target, use_bfloat16), 2))
 
 
 def l1_norm(output, target):
@@ -42,7 +47,11 @@ def create_datasets(train_txt, val_txt, test_txt, data_path, features, batch_siz
     train_dataset = CustomImageDataset(train_txt, data_path, features)
     val_dataset = CustomImageDataset(val_txt, data_path, features)
     test_dataset = CustomImageDataset(test_txt, data_path, features)
+    #if use_bfloat16:
+    #    for dataset in [train_dataset, val_dataset, test_dataset]:
+    #        dataset.data = dataset.data.to(torch.bfloat16)
 
+ 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
