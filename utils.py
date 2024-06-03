@@ -4,6 +4,7 @@ import numpy as np
 
 from dataset import CustomImageDataset
 from torch.utils.data import DataLoader
+import torch.nn.functional as F
 
 def psnr(img1, img2):
     mse = torch.mean((img1 - img2) ** 2)
@@ -36,6 +37,9 @@ def HFEN(output, target):
 
 def l1_norm(output, target):
 	return torch.sum(torch.abs(output - target)) / torch.numel(output)
+
+def l2_norm(output, target):
+     return F.mse_loss(output, target)
 
 
 def create_datasets(train_txt, val_txt, test_txt, data_path, features, batch_size=32):
