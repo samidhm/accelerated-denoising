@@ -35,7 +35,7 @@ train_loader, val_loader, test_loader, num_features = create_datasets(train_txt,
 
 device = torch.device("cuda")
 # Define the model, loss function, and optimizer
-model = UNet(num_features, 3, args.n, args.bottleneck).to(device)
+model = UNet(num_features, 3, args.num_layers, args.bottleneck).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training parameters
@@ -128,7 +128,7 @@ model.load_state_dict(best_model_wts)
 
 os.makedirs("results", exist_ok=True)
 feature_string = '\t'.join([x[:3] for x in args.features])
-experiment_name = f"{args.tag}_n_{args.n}_alpha_{args.alpha:.2f}_feat_{feature_string}"
+experiment_name = f"{args.tag}_n_{args.num_layers}_alpha_{args.alpha:.2f}_feat_{feature_string}"
 
 folder = f"results/{experiment_name}"
 os.makedirs(folder, exist_ok=True)
