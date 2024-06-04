@@ -39,7 +39,7 @@ model = UNet(num_features, 3, args.num_layers, args.bottleneck).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training parameters
-num_epochs = 10
+num_epochs = 50
 patience = 5  # Early stopping patience
 best_loss = float('inf')
 patience_counter = 0
@@ -58,7 +58,7 @@ model.train()
 
 # Training loop
 for epoch in range(num_epochs):
-    adjust_learning_rate(optimizer, epoch)
+    # adjust_learning_rate(optimizer, epoch)
     running_loss = 0.0
     t = time()
     for noisy_image, clean_image in tqdm(train_loader):
@@ -118,17 +118,24 @@ for epoch in range(num_epochs):
                 l2_loss = 1
                 patience_counter = 0
                 l1_epochs = epoch
+                best_loss = float('inf')
             elif l2_loss == 1:
                 print("Early stopping triggered, exiting")
                 l2_epochs = epoch
-            break
+                break
 
 # Load the best model weights
 model.load_state_dict(best_model_wts)
 
 os.makedirs("results", exist_ok=True)
-feature_string = '\t'.join([x[:3] for x in args.features])
-experiment_name = f"{args.tag}_n_{args.num_layers}_alpha_{args.alpha:.2f}_feat_{feature_string}"
+feature_string = '_'.join([x[:3] for x in args.features])
+
+if args.tag != "":
+    experiment_name = f"{args.tag}_"
+else:
+    experiment_name = ""
+
+experiment_name += f"n_{args.num_layers}_alpha_{args.alpha:.2f}_feat_{feature_string}"
 
 folder = f"results/{experiment_name}"
 os.makedirs(folder, exist_ok=True)
