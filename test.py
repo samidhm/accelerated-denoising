@@ -21,6 +21,7 @@ parser = argparse.ArgumentParser(description="UNet model training loop")
 parser.add_argument("-q", "--quantize", type=str, help="Choose quantization mode", default="none", choices=["none", "ptdq", "ptsq"])
 parser.add_argument("-e", "--experiment", default="unet_denoising", type=str, help="Name of the experiment to evaluate")
 parser.add_argument("-b", "--batch_size", default=1260, type=int, help="Inference batch size")
+parser.add_argument("-h", "--half_precision", action="store_true", help="Run inference on half precision")
 
 args = parser.parse_args()
 
@@ -35,7 +36,12 @@ train_loader, val_loader, test_loader, num_features = \
 device = torch.device("cuda")
 
 #Load model checkpoint
-model = UNet(num_features, 3, config["n"]).to(device)
+model = UNet(num_features, 3, config["n"])
+
+if args.half_precision:
+    model = model.half()
+
+model = model.to(device)
 model.load_state_dict(torch.load(f"{folder}/checkpoint.pth"))
 model.eval()
 
@@ -74,8 +80,11 @@ psnr_values = []
 
 with torch.no_grad():
     for idx, (noisy_image, gold) in enumerate(test_loader):
+        if args.half_precision:
+            noisy_image = noisy_image.half()
+            gold = gold.half()
+
         noisy_image = noisy_image.to('cuda')
-        
         t = time.time()
         outputs = model(noisy_image)
         latencies.append(time.time() - t)
