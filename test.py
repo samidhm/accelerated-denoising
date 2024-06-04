@@ -16,6 +16,17 @@ from utils import *
 from model_stats import SizeEstimator
 
 
+def get_model_size(model):
+	param_size = 0
+	for param in model.parameters():
+    		param_size += param.nelement() * param.element_size()
+	buffer_size = 0
+	for buffer in model.buffers():
+    		buffer_size += buffer.nelement() * buffer.element_size()
+
+	return (param_size + buffer_size) / 1024**2
+
+
 #Get arguments for network configuration from command line
 parser = argparse.ArgumentParser(description="UNet model training loop")
 parser.add_argument("-q", "--quantize", type=str, help="Choose quantization mode", default="none", choices=["none", "ptdq", "ptsq"])
@@ -42,12 +53,11 @@ model = UNet(num_features, 3, config["n"])
 if args.half_precision:
     model = model.half()
 
+print("Model size:", get_model_size(model))
+
 model = model.to(device)
 model.load_state_dict(torch.load(f"{folder}/checkpoint.pth"))
 model.eval()
-
-print('Weights before quantization')
-print(model.bottleneck[0].weight)
 
 loader = test_loader if not args.inference else inference_loader
 
@@ -81,8 +91,22 @@ test_files = open("data/test.txt", "r").read().strip().split("\n")
 latencies = []
 psnr_values = []
 
+
+print("Warming up")
+t = torch.randn((args.batch_size, num_features, 64, 64))
+
+if args.half_precision:
+	t = t.half()
+
+t = t.to('cuda')
+print(t.shape)
+for i in tqdm(range(50)):
+	o = model(t)
+	del o
+del t
+
 with torch.no_grad():
-    for idx, (noisy_image, gold) in tqdm(enumerate(loader), total=len(loader)):
+    for idx, (noisy_image, gold) in enumerate(loader):
         if args.half_precision:
             noisy_image = noisy_image.half()
             gold = gold.half()
@@ -91,12 +115,13 @@ with torch.no_grad():
         print(f"Starting inference on inputs of shape {noisy_image.shape}")
         t = time.time()
         outputs = model(noisy_image)
+        torch.cuda.synchronize() 
         latencies.append(time.time() - t)
-        print(f"Latency: {latencies[-1]}")
+        print(f"Batch {idx}, latency: {latencies[-1]}")
 
         if not args.inference:
             for i in tqdm(range(outputs.size(0))):
-                psnr_values.append(psnr(outputs[i].cpu(), gold))
+                psnr_values.append(psnr(outputs[i].cpu(), gold[i]))
                 denoised_img = outputs[i].cpu().numpy().transpose(1, 2, 0)  # Convert to HWC format
                 denoised_img = (denoised_img * 255).astype(np.uint8)  # Convert to uint8
                 img = Image.fromarray(denoised_img)
@@ -109,11 +134,11 @@ out = {
     "avg_batch_latency": np.mean(latencies),
     "num_batches": len(loader),
     "num_examples": len(loader.dataset),
-    "model_size": os.path.getsize(f"{folder}/checkpoint.pth") / 1e3,
+    "model_size": get_model_size(model),
 }    
 
 if not args.inference:
-    out["avg_psnr"] = np.mean(psnr_values)
+	out["avg_psnr"] = np.mean(psnr_values)
 
 filename = "test_stats.json" if not args.inference else "inference_stats.json"
 
