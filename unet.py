@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class UNet(nn.Module):
-    def __init__(self, in_channels, out_channels, no_layers = 4, bottleneck = "conv", activation = ""):
+    def __init__(self, in_channels, out_channels, no_layers = 4, bottleneck = "conv", activation = "sigmoid"):
         super(UNet, self).__init__()
 
         #Define the encoder layers

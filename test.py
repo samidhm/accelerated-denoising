@@ -21,7 +21,7 @@ parser = argparse.ArgumentParser(description="UNet model training loop")
 parser.add_argument("-q", "--quantize", type=str, help="Choose quantization mode", default="none", choices=["none", "ptdq", "ptsq"])
 parser.add_argument("-e", "--experiment", default="unet_denoising", type=str, help="Name of the experiment to evaluate")
 parser.add_argument("-b", "--batch_size", default=1260, type=int, help="Inference batch size")
-parser.add_argument("-h", "--half_precision", action="store_true", help="Run inference on half precision")
+parser.add_argument("-p", "--half_precision", action="store_true", help="Run inference on half precision")
 
 args = parser.parse_args()
 
@@ -79,17 +79,19 @@ latencies = []
 psnr_values = []
 
 with torch.no_grad():
-    for idx, (noisy_image, gold) in enumerate(test_loader):
+    for idx, (noisy_image, gold) in tqdm(enumerate(test_loader)):
         if args.half_precision:
             noisy_image = noisy_image.half()
             gold = gold.half()
 
         noisy_image = noisy_image.to('cuda')
+        print(f"Starting inference on inputs of shape {noisy_image.shape}")
         t = time.time()
         outputs = model(noisy_image)
         latencies.append(time.time() - t)
+        print(f"Latency: {latencies[-1]}")
 
-        for i in range(outputs.size(0)):
+        for i in tqdm(range(outputs.size(0))):
             psnr_values.append(psnr(outputs[i].cpu(), gold))
             denoised_img = outputs[i].cpu().numpy().transpose(1, 2, 0)  # Convert to HWC format
             denoised_img = (denoised_img * 255).astype(np.uint8)  # Convert to uint8
