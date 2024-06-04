@@ -19,7 +19,7 @@ parser.add_argument("-n", "--num_layers", type=int, default=4, help="No of encod
 parser.add_argument("-b", "--bottleneck", type=str, default="conv", help="Choose architecture of bottleneck layer, conv")
 parser.add_argument("-f", "--features", nargs='+', default=["depth", "normal", "relative_normal", "albedo", "roughness"], help="Features to include")
 parser.add_argument("-t", "--tag", type=str, default="", help="Tag to be added for while saving files")
-parser.add_argument("-a", "--alpha", type=str, default=0.5, help="Coefficient for L1 loss")
+parser.add_argument("-a", "--alpha", type=float, default=0.5, help="Coefficient for L1 loss")
 
 args = parser.parse_args()
 
@@ -40,7 +40,7 @@ model = UNet(num_features, 3, args.num_layers, args.bottleneck).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training parameters
-num_epochs = 50
+num_epochs = 10
 patience = 5  # Early stopping patience
 best_loss = float('inf')
 patience_counter = 0
