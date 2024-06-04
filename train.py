@@ -40,7 +40,7 @@ model = UNet(num_features, 3, args.num_layers, args.bottleneck).to(device)
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 
 # Training parameters
-num_epochs = 10
+num_epochs = 1
 patience = 5  # Early stopping patience
 best_loss = float('inf')
 patience_counter = 0

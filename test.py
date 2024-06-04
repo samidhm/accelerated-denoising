@@ -53,10 +53,10 @@ model = UNet(num_features, 3, config["n"])
 if args.half_precision:
     model = model.half()
 
-print("Model size:", get_model_size(model))
-
 model = model.to(device)
 model.load_state_dict(torch.load(f"{folder}/checkpoint.pth"))
+model = torch.compile(model)
+print("Model size:", get_model_size(model))
 model.eval()
 
 loader = test_loader if not args.inference else inference_loader
@@ -93,17 +93,14 @@ psnr_values = []
 
 
 print("Warming up")
-t = torch.randn((args.batch_size, num_features, 64, 64))
-
-if args.half_precision:
-	t = t.half()
-
-t = t.to('cuda')
-print(t.shape)
 for i in tqdm(range(50)):
+	t = torch.randn((args.batch_size, num_features, 64, 64))
+	if args.half_precision:
+		t = t.half()
+	t = t.to('cuda')
 	o = model(t)
 	del o
-del t
+	del t
 
 with torch.no_grad():
     for idx, (noisy_image, gold) in enumerate(loader):
@@ -113,6 +110,7 @@ with torch.no_grad():
 
         noisy_image = noisy_image.to('cuda')
         print(f"Starting inference on inputs of shape {noisy_image.shape}")
+        torch.cuda.synchronize() 
         t = time.time()
         outputs = model(noisy_image)
         torch.cuda.synchronize() 
