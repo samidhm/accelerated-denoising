@@ -13,12 +13,14 @@ if __name__ == "__main__":
     
     test_points = [(-10, -6), (84, -42), (7, 30), (-25, 13), (40, -28), (70, -25), (70, -59)]
 
+    inference_points = train_points + val_points + test_points
+
     heights = [i for i in range(2, 17)]
     camera_euler_rotations_x =  [60, 90, 120]
     camera_euler_rotations_z =  [i for i in range(0, 360, 45)]
 
 
-    for points, filename in [(train_points, "train"), (val_points, "val"), (test_points, "test")]:
+    for points, filename in [(train_points, "train"), (val_points, "val"), (test_points, "test"), (inference_points, "inference")]:
         axes = [points, heights, camera_euler_rotations_x, camera_euler_rotations_z]
         names = []
         for (x, y), z, eu_x, eu_z in itertools.product(*axes):

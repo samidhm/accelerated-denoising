@@ -22,6 +22,7 @@ parser.add_argument("-q", "--quantize", type=str, help="Choose quantization mode
 parser.add_argument("-e", "--experiment", default="unet_denoising", type=str, help="Name of the experiment to evaluate")
 parser.add_argument("-b", "--batch_size", default=1260, type=int, help="Inference batch size")
 parser.add_argument("-p", "--half_precision", action="store_true", help="Run inference on half precision")
+parser.add_argument("-i", "--inference", action="store_true", help="Run inference on entire dataset (no saving test images)")
 
 args = parser.parse_args()
 
@@ -29,8 +30,8 @@ folder = f"results/{args.experiment}"
 
 config = json.load(open(f"{folder}/config.json"))
 
-train_loader, val_loader, test_loader, num_features = \
-        create_datasets("data/train.txt", "data/val.txt","data/test.txt", "data/raw_data", config["features"], args.batch_size)
+train_loader, val_loader, test_loader, inference_loader, num_features = \
+        create_datasets("data/train.txt", "data/val.txt", "data/test.txt", "data/inference.txt", "data/raw_data", config["features"], args.batch_size)
 
 
 device = torch.device("cuda")
@@ -48,6 +49,8 @@ model.eval()
 print('Weights before quantization')
 print(model.bottleneck[0].weight)
 
+loader = test_loader if not args.inference else inference_loader
+
 #Quantize model
 if args.quantize == "ptdq":
     torch.ao.quantization.quantize_dynamic(model, dtype=torch.qint8, inplace=True)
@@ -59,7 +62,7 @@ elif args.quantize == "ptsq":
     #Calibrate by running one batch from validation set
     with torch.no_grad():
         print("Running calibration")
-        for (noisy_image, _) in tqdm(test_loader):
+        for (noisy_image, _) in tqdm(loader):
             model(noisy_image)
             break
     
@@ -79,7 +82,7 @@ latencies = []
 psnr_values = []
 
 with torch.no_grad():
-    for idx, (noisy_image, gold) in tqdm(enumerate(test_loader)):
+    for idx, (noisy_image, gold) in tqdm(enumerate(loader), total=len(loader)):
         if args.half_precision:
             noisy_image = noisy_image.half()
             gold = gold.half()
@@ -91,22 +94,30 @@ with torch.no_grad():
         latencies.append(time.time() - t)
         print(f"Latency: {latencies[-1]}")
 
-        for i in tqdm(range(outputs.size(0))):
-            psnr_values.append(psnr(outputs[i].cpu(), gold))
-            denoised_img = outputs[i].cpu().numpy().transpose(1, 2, 0)  # Convert to HWC format
-            denoised_img = (denoised_img * 255).astype(np.uint8)  # Convert to uint8
-            img = Image.fromarray(denoised_img)
-            
-            img.save(os.path.join(images_dir, f'{test_files[idx * test_loader.batch_size + i]}'))
+        if not args.inference:
+            for i in tqdm(range(outputs.size(0))):
+                psnr_values.append(psnr(outputs[i].cpu(), gold))
+                denoised_img = outputs[i].cpu().numpy().transpose(1, 2, 0)  # Convert to HWC format
+                denoised_img = (denoised_img * 255).astype(np.uint8)  # Convert to uint8
+                img = Image.fromarray(denoised_img)
+                
+                img.save(os.path.join(images_dir, f'{test_files[idx * loader.batch_size + i]}'))
 
 out = {
     "batch_size": args.batch_size,
+    "total_time": np.sum(latencies),
     "avg_batch_latency": np.mean(latencies),
+    "num_batches": len(loader),
+    "num_examples": len(loader.dataset),
     "model_size": os.path.getsize(f"{folder}/checkpoint.pth") / 1e3,
-    "avg_psnr": np.mean(psnr_values)
 }    
 
-with open(f"{output_dir}/stats.json", 'w') as fp:
+if not args.inference:
+    out["avg_psnr"] = np.mean(psnr_values)
+
+filename = "test_stats.json" if not args.inference else "inference_stats.json"
+
+with open(f"{output_dir}/{filename}", 'w') as fp:
     json.dump(out, fp)
 
-print(f"Denoised test results saved to {output_dir}")
+print(f"Denoised results saved to {output_dir}")

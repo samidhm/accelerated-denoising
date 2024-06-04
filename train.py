@@ -28,10 +28,11 @@ split_file_folder = "data"
 train_txt = f"{split_file_folder}/train.txt"
 val_txt = f"{split_file_folder}/val.txt"
 test_txt = f"{split_file_folder}/test.txt"
+inference_txt = f"{split_file_folder}/inference.txt"
 
 # Paths to the image folders
 data_path = "data/raw_data"
-train_loader, val_loader, test_loader, num_features = create_datasets(train_txt, val_txt, test_txt, data_path, args.features)
+train_loader, val_loader, test_loader, _, num_features = create_datasets(train_txt, val_txt, test_txt, inference_txt, data_path, args.features)
 
 device = torch.device("cuda")
 # Define the model, loss function, and optimizer

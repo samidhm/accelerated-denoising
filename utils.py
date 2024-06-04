@@ -42,16 +42,18 @@ def l2_norm(output, target):
      return F.mse_loss(output, target)
 
 
-def create_datasets(train_txt, val_txt, test_txt, data_path, features, batch_size=32):
+def create_datasets(train_txt, val_txt, test_txt, inference_txt, data_path, features, batch_size=32):
     train_dataset = CustomImageDataset(train_txt, data_path, features)
     val_dataset = CustomImageDataset(val_txt, data_path, features)
     test_dataset = CustomImageDataset(test_txt, data_path, features)
+    inference_dataset = CustomImageDataset(inference_txt, data_path, features)
 
     train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False)
     test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+    inference_loader = DataLoader(inference_dataset, batch_size=batch_size, shuffle=False)
 
-    return train_loader, val_loader, test_loader, train_dataset.num_features
+    return train_loader, val_loader, test_loader, inference_loader, train_dataset.num_features
 
 
 def adjust_learning_rate(optimizer, epoch):
